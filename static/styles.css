@@ -1,0 +1,277 @@
+body {
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Arial, sans-serif;
+    background: #f5f5f5;
+    margin: 0;
+    padding: 0;
+}
+
+.container {
+    max-width: 1600px;
+    margin: 1rem auto;
+    background: #fff;
+    padding: 2rem;
+    border-radius: 8px;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.08);
+}
+
+h1 {
+    text-align: center;
+    margin: 0 0 1rem 0;
+    color: #333;
+}
+
+.tabs {
+    display: flex;
+    gap: 1rem;
+    margin-bottom: 1rem;
+    border-bottom: 2px solid #eee;
+}
+
+.tab {
+    padding: 0.8rem 1.5rem;
+    background: none;
+    border: none;
+    border-bottom: 3px solid transparent;
+    cursor: pointer;
+    font-size: 1rem;
+    color: #666;
+    transition: all 0.3s;
+}
+
+.tab.active {
+    color: #007bff;
+    border-bottom-color: #007bff;
+}
+
+.explain {
+    color: #888;
+    font-size: 0.9rem;
+    margin: 0.5rem 0 1.5rem 0;
+}
+
+.search-box {
+    display: flex;
+    gap: 0.5rem;
+    margin-bottom: 1.5rem;
+}
+
+#searchInput {
+    flex: 1;
+    padding: 0.8rem;
+    font-size: 1rem;
+    border: 1px solid #ddd;
+    border-radius: 5px;
+    transition: border-color 0.3s;
+}
+
+#searchInput:focus {
+    outline: none;
+    border-color: #007bff;
+    box-shadow: 0 0 0 3px rgba(0,123,255,0.1);
+}
+
+#search-btn {
+    padding: 0.8rem 1.5rem;
+    background: #007bff;
+    color: white;
+    border: none;
+    border-radius: 5px;
+    cursor: pointer;
+    font-size: 1rem;
+    transition: background 0.3s;
+}
+
+#search-btn:hover {
+    background: #0056b3;
+}
+
+.filters {
+    display: flex;
+    gap: 1rem;
+    margin-bottom: 1.5rem;
+    padding: 1rem;
+    background: #f9f9f9;
+    border-radius: 5px;
+    align-items: center;
+    flex-wrap: wrap;
+}
+
+.filters label {
+    font-weight: 600;
+    color: #333;
+    margin: 0;
+}
+
+.filters select,
+.filters input {
+    padding: 0.6rem;
+    border: 1px solid #ddd;
+    border-radius: 4px;
+    font-size: 0.9rem;
+}
+
+#apply-filters {
+    padding: 0.6rem 1.2rem;
+    background: #28a745;
+    color: white;
+    border: none;
+    border-radius: 4px;
+    cursor: pointer;
+    font-size: 0.9rem;
+    transition: background 0.3s;
+}
+
+#apply-filters:hover {
+    background: #1e7e34;
+}
+
+#results {
+    display: grid;
+    grid-template-columns: repeat(5, 1fr);
+    gap: 1rem;
+    margin-bottom: 2rem;
+}
+
+.result {
+    background: #fafafa;
+    border: 1px solid #e0e0e0;
+    border-radius: 6px;
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+    transition: transform 0.2s, box-shadow 0.2s;
+}
+
+.result:hover {
+    transform: translateY(-3px);
+    box-shadow: 0 4px 12px rgba(0,0,0,0.12);
+}
+
+.result img {
+    width: 100%;
+    height: auto;
+    max-height: 300px;
+    object-fit: contain;
+    background: #e0e0e0;
+    padding: 0.5rem;
+}
+
+.info {
+    flex: 1;
+    padding: 0.8rem;
+    display: flex;
+    flex-direction: column;
+}
+
+.info h3 {
+    margin: 0 0 0.4rem 0;
+    font-size: 0.95rem;
+    line-height: 1.3;
+    color: #333;
+}
+
+.info p {
+    margin: 0.2rem 0;
+    font-size: 0.8rem;
+    color: #666;
+}
+
+.info strong {
+    font-weight: 600;
+    color: #555;
+}
+
+.meta {
+    color: #999;
+    font-size: 0.75rem;
+}
+
+.actions {
+    display: flex;
+    gap: 0.4rem;
+    margin-top: auto;
+    padding-top: 0.8rem;
+    border-top: 1px solid #e0e0e0;
+}
+
+.btn {
+    flex: 1;
+    padding: 0.6rem 0.4rem;
+    border: none;
+    border-radius: 4px;
+    cursor: pointer;
+    font-size: 0.8rem;
+    text-decoration: none;
+    text-align: center;
+    transition: background-color 0.2s;
+    display: inline-block;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.btn-free {
+    background-color: #28a745;
+    color: white;
+}
+
+.btn-free:hover {
+    background-color: #1e7e34;
+}
+
+#loading {
+    text-align: center;
+    padding: 2rem;
+    color: #666;
+    display: none;
+}
+
+#loading.active {
+    display: block;
+}
+
+#load-more {
+    background: #007bff;
+    color: white;
+    font-size: 1rem;
+    border: none;
+    border-radius: 5px;
+    cursor: pointer;
+    transition: background 0.3s;
+}
+
+#load-more:hover {
+    background: #0056b3;
+}
+
+@media (max-width: 1400px) {
+    #results {
+        grid-template-columns: repeat(4, 1fr);
+    }
+}
+
+@media (max-width: 1024px) {
+    #results {
+        grid-template-columns: repeat(3, 1fr);
+    }
+    
+    .filters {
+        flex-direction: column;
+        align-items: stretch;
+    }
+    
+    .filters select,
+    .filters input {
+        width: 100%;
+    }
+}
+
+@media (max-width: 600px) {
+    #results {
+        grid-template-columns: repeat(2, 1fr);
+    }
+    
+    .container {
+        padding: 1rem;
+    }
+}
