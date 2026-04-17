@@ -1,4 +1,7 @@
 # backend/main.py
+import re
+from difflib import SequenceMatcher
+
 from fastapi import FastAPI, Request
 from fastapi.responses import HTMLResponse
 from fastapi.staticfiles import StaticFiles
@@ -28,6 +31,69 @@ app.mount("/static", StaticFiles(directory="static"), name="static")
 
 RESULTS_PER_PAGE = 10
 # No hard cap: services will page through their APIs as needed (supporting "unlimited").
+
+
+def _clean_text(value: str) -> str:
+    return re.sub(r"\s+", " ", (value or "").strip().lower())
+
+
+def _word_tokens(value: str):
+    return re.findall(r"[a-z0-9]+", _clean_text(value))
+
+
+def _description_text(record: dict) -> str:
+    raw = record.get("raw") if isinstance(record.get("raw"), dict) else {}
+    volume_info = raw.get("volumeInfo") if isinstance(raw.get("volumeInfo"), dict) else {}
+    candidates = [
+        record.get("description"),
+        record.get("summary"),
+        record.get("excerpt"),
+        volume_info.get("description"),
+        volume_info.get("subtitle"),
+    ]
+    return " ".join([c for c in candidates if isinstance(c, str) and c.strip()])
+
+
+def _query_matches_text(query: str, text: str) -> bool:
+    q = _clean_text(query)
+    t = _clean_text(text)
+    if not q or not t:
+        return False
+
+    if q in t:
+        return True
+
+    q_tokens = [tok for tok in _word_tokens(q) if len(tok) >= 3]
+    t_tokens = set(_word_tokens(t))
+    if not q_tokens or not t_tokens:
+        return False
+
+    # Typo-tolerant token matching (e.g. "tsntra" -> "tantra")
+    for q_tok in q_tokens:
+        token_match = False
+        for t_tok in t_tokens:
+            if q_tok == t_tok or q_tok in t_tok or t_tok in q_tok:
+                token_match = True
+                break
+            if abs(len(q_tok) - len(t_tok)) <= 2 and SequenceMatcher(None, q_tok, t_tok).ratio() >= 0.8:
+                token_match = True
+                break
+        if not token_match:
+            return False
+    return True
+
+
+def _record_matches_query(record: dict, query: str, exact: bool = False) -> bool:
+    title = record.get("title") or ""
+    description = _description_text(record)
+    q = _clean_text(query)
+
+    if exact:
+        # strict containment in title or description
+        return bool(q) and (q in _clean_text(title) or q in _clean_text(description))
+
+    # normal mode: fuzzy/typo-tolerant over title or description text
+    return _query_matches_text(query, title) or _query_matches_text(query, description)
 
 @app.get("/", response_class=HTMLResponse)
 async def root():
@@ -65,19 +131,9 @@ def search(
             print(f"Error running multi source search: {e}")
             deduped = []
 
-        if exact:
-            term = query.lower()
-            def matches(r):
-                if term in (r.get("title") or "").lower():
-                    return True
-                for field in (r.get("authors") or []):
-                    if term in field.lower():
-                        return True
-                for subj in (r.get("subjects") or []):
-                    if term in subj.lower():
-                        return True
-                return False
-            deduped = [r for r in deduped if matches(r)]
+        # Keep only books where query appears in title or description.
+        # In normal mode this is typo-tolerant; in exact mode this is strict containment.
+        deduped = [r for r in deduped if _record_matches_query(r, query, exact=exact)]
     else:
         cached = open_web_cache.get(query)
         if cached is not None:
