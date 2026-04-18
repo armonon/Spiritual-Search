@@ -27,12 +27,30 @@ def search_google_books(query, max_results=10):
 
         for item in items:
             volume_info = item.get('volumeInfo', {})
+            identifiers = volume_info.get('industryIdentifiers', []) or []
+            isbn = None
+            for ident in identifiers:
+                ident_type = (ident.get('type') or '').upper()
+                ident_value = ident.get('identifier')
+                if ident_value and ident_type in {'ISBN_13', 'ISBN_10'}:
+                    isbn = ident_value
+                    break
+
+            thumbnail = volume_info.get('imageLinks', {}).get('thumbnail')
+            if isinstance(thumbnail, str) and thumbnail.startswith('http://'):
+                thumbnail = 'https://' + thumbnail[len('http://'):]
+
             books.append({
                 'title': volume_info.get('title', 'No Title'),
                 'authors': volume_info.get('authors', []),
                 'year': (volume_info.get('publishedDate', '') or '')[:4],
+                'description': volume_info.get('description') or volume_info.get('subtitle'),
+                'isbn': isbn,
                 'source': 'GoogleBooks',
-                'thumbnail': volume_info.get('imageLinks', {}).get('thumbnail')
+                'thumbnail': thumbnail,
+                'raw': {
+                    'volumeInfo': volume_info,
+                },
             })
 
         count = len(items)

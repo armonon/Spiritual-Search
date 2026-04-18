@@ -20,6 +20,59 @@ const exactCheckbox = document.getElementById('exact-match');
 const synonymsCheckbox = document.getElementById('include-synonyms');
 const applyFiltersBtn = document.getElementById('apply-filters');
 const loadMoreBtn = document.getElementById('load-more');
+const PLACEHOLDER_THUMBNAIL = 'data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 width=%22200%22 height=%22300%22%3E%3Crect fill=%22%23ddd%22 width=%22200%22 height=%22300%22/%3E%3Ctext x=%2250%25%22 y=%2250%25%22 dominant-baseline=%22middle%22 text-anchor=%22middle%22 font-family=%22Arial%22 font-size=%2214%22 fill=%22%23666%22%3ENo Cover%3C/text%3E%3C/svg%3E';
+
+function toHttps(url) {
+  if (!url || typeof url !== 'string') return '';
+  return url.startsWith('http://') ? `https://${url.slice(7)}` : url;
+}
+
+function extractYear(item) {
+  const candidates = [item?.year, item?.date, item?.publishedDate, item?.raw?.date, item?.raw?.publishedDate];
+  for (const candidate of candidates) {
+    if (candidate === null || candidate === undefined) continue;
+    const match = String(candidate).match(/\b(1[0-9]{3}|20[0-9]{2}|21[0-9]{2})\b/);
+    if (match) return parseInt(match[1], 10);
+  }
+  return null;
+}
+
+function yearLabel(item) {
+  return extractYear(item) || item?.year || item?.date || 'Year unknown';
+}
+
+function pickIsbn(item) {
+  const isbnField = item?.isbn || item?.raw?.isbn || item?.raw?.volumeInfo?.industryIdentifiers;
+  if (Array.isArray(isbnField)) {
+    for (const entry of isbnField) {
+      if (typeof entry === 'string' && entry.trim()) return entry.trim();
+      if (entry?.identifier) return String(entry.identifier).trim();
+    }
+  }
+  if (typeof isbnField === 'string' && isbnField.trim()) return isbnField.trim();
+  return '';
+}
+
+function bestThumbnail(item) {
+  const raw = item?.raw || {};
+  const imageLinks = raw?.volumeInfo?.imageLinks || {};
+  const coverId = raw?.cover_i || raw?.cover_id || item?.cover_i || item?.cover_id;
+  const iaIdentifier = item?.id || raw?.identifier;
+  const gutenCover = raw?.formats?.['image/jpeg'];
+
+  const candidates = [
+    item?.thumbnail,
+    item?.cover_url,
+    imageLinks?.thumbnail,
+    imageLinks?.smallThumbnail,
+    gutenCover,
+    coverId ? `https://covers.openlibrary.org/b/id/${coverId}-M.jpg` : '',
+    pickIsbn(item) ? `https://covers.openlibrary.org/b/isbn/${encodeURIComponent(pickIsbn(item))}-M.jpg` : '',
+    iaIdentifier ? `https://archive.org/services/img/${encodeURIComponent(String(iaIdentifier))}` : '',
+  ].map(toHttps).filter(Boolean);
+
+  return candidates[0] || PLACEHOLDER_THUMBNAIL;
+}
 
 function showLoading(show) {
   if (!loadingEl) return;
@@ -33,12 +86,12 @@ function showLoading(show) {
 function sortResults(results, sortBy) {
   const sorted = [...results];
   if (sortBy === 'newest') {
-    sorted.sort((a, b) => (b.year || 0) - (a.year || 0));
+    sorted.sort((a, b) => (extractYear(b) || 0) - (extractYear(a) || 0));
   } else if (sortBy === 'oldest') {
-    sorted.sort((a, b) => (a.year || 0) - (b.year || 0));
+    sorted.sort((a, b) => (extractYear(a) || 0) - (extractYear(b) || 0));
   } else if (sortBy === 'popularity') {
     // If results have a popularity/rating score, use it; otherwise by year (recent = popular)
-    sorted.sort((a, b) => (b.rating || b.year || 0) - (a.rating || a.year || 0));
+    sorted.sort((a, b) => (b.rating || extractYear(b) || 0) - (a.rating || extractYear(a) || 0));
   }
   // 'relevance' keeps original order
   return sorted;
@@ -49,12 +102,15 @@ function applyLocalFilters() {
   
   const fromYear = yearFrom.value ? parseInt(yearFrom.value) : null;
   const toYear = yearTo.value ? parseInt(yearTo.value) : null;
+  const low = fromYear && toYear ? Math.min(fromYear, toYear) : fromYear;
+  const high = fromYear && toYear ? Math.max(fromYear, toYear) : toYear;
   
-  if (fromYear || toYear) {
+  if (low || high) {
     filtered = filtered.filter(item => {
-      const year = item.year || 0;
-      if (fromYear && year < fromYear) return false;
-      if (toYear && year > toYear) return false;
+      const year = extractYear(item);
+      if (year === null) return false;
+      if (low && year < low) return false;
+      if (high && year > high) return false;
       return true;
     });
   }
@@ -83,14 +139,14 @@ function displayResults() {
       const authors = Array.isArray(item.authors) ? item.authors : (item.authors ? [item.authors] : []);
       const authorStr = authors.join(', ') || 'Unknown Author';
       const searchQuery = encodeURIComponent(`${item.title} ${authorStr}`);
-      const imgSrc = item.thumbnail && item.thumbnail.startsWith('http') ? item.thumbnail : 'data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 width=%22200%22 height=%22300%22%3E%3Crect fill=%22%23ddd%22 width=%22200%22 height=%22300%22/%3E%3Ctext x=%2250%25%22 y=%2250%25%22 dominant-baseline=%22middle%22 text-anchor=%22middle%22 font-family=%22Arial%22 font-size=%2214%22 fill=%22%23666%22%3ENo Cover%3C/text%3E%3C/svg%3E';
+      const imgSrc = bestThumbnail(item);
       
       div.innerHTML = `
-        <img src="${imgSrc}" alt="${item.title}" />
+        <img src="${imgSrc}" alt="${item.title}" onerror="this.onerror=null;this.src='${PLACEHOLDER_THUMBNAIL}'" />
         <div class="info">
           <h3>${item.title}</h3>
           <p><strong>${authorStr}</strong></p>
-          <p>${item.year || 'Year unknown'}</p>
+          <p>${yearLabel(item)}</p>
           <p><small><i>${item.source || ''}</i></small></p>
         </div>
         <div class="actions">

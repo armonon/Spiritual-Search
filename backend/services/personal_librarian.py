@@ -59,7 +59,11 @@ def search_openlibrary(keywords: List[str], per_keyword: int = 8) -> List[Dict[s
     aggregated: Dict[str, Dict[str, Any]] = {}
 
     for kw in keywords:
-        params = {"q": kw, "limit": per_keyword, "fields": "title,author_name,first_publish_year,key"}
+        params = {
+            "q": kw,
+            "limit": per_keyword,
+            "fields": "title,author_name,first_publish_year,key,cover_i,isbn,first_sentence",
+        }
         try:
             r = requests.get(OPENLIB_SEARCH_URL, params=params, timeout=8)
             r.raise_for_status()
@@ -79,11 +83,25 @@ def search_openlibrary(keywords: List[str], per_keyword: int = 8) -> List[Dict[s
                     aggregated[key]["matched_keywords"].append(kw)
                 continue
 
+            cover_i = doc.get("cover_i")
+            isbn = (doc.get("isbn") or [None])[0]
+            first_sentence = doc.get("first_sentence")
+            if isinstance(first_sentence, dict):
+                first_sentence = first_sentence.get("value")
+            if isinstance(first_sentence, list):
+                first_sentence = " ".join([str(s) for s in first_sentence if s])
+
+            thumbnail = f"https://covers.openlibrary.org/b/id/{cover_i}-M.jpg" if cover_i else None
+
             aggregated[key] = {
                 "id": key,
                 "title": doc.get("title"),
                 "authors": doc.get("author_name") or [],
                 "year": doc.get("first_publish_year"),
+                "description": first_sentence,
+                "isbn": isbn,
+                "cover_i": cover_i,
+                "thumbnail": thumbnail,
                 "matched_keywords": [kw],
                 "source": "openlibrary",
                 "raw": doc,
