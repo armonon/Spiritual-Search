@@ -1,4 +1,3 @@
-let currentPage = 1;
 let query = '';
 let loading = false;
 let hasMore = true;
@@ -64,23 +63,19 @@ function applyLocalFilters() {
   filtered = sortResults(filtered, sortBy);
   
   filteredResults = filtered;
-  currentPage = 1;
   displayResults();
 }
 
 function displayResults() {
   resultsContainer.innerHTML = '';
-  const startIdx = (currentPage - 1) * LIMIT;
-  const endIdx = startIdx + LIMIT;
-  const pageResults = filteredResults.slice(startIdx, endIdx);
-  
-  if (pageResults.length === 0 && currentPage === 1) {
+
+  if (filteredResults.length === 0) {
     resultsContainer.innerHTML = '<p>No results found.</p>';
-    loadMoreBtn.style.display = 'none';
+    if (loadMoreBtn) loadMoreBtn.style.display = 'none';
     return;
   }
-  
-  pageResults.forEach(item => {
+
+  filteredResults.forEach(item => {
     const div = document.createElement('div');
     div.className = 'result';
 
@@ -114,10 +109,18 @@ function displayResults() {
 
     resultsContainer.appendChild(div);
   });
-  
-  hasMore = endIdx < filteredResults.length;
+
   if (loadMoreBtn) {
     loadMoreBtn.style.display = hasMore ? 'block' : 'none';
+  }
+
+  ensureContentFillsViewport();
+}
+
+function ensureContentFillsViewport() {
+  if (!hasMore || loading) return;
+  if (document.body.scrollHeight <= window.innerHeight + 120) {
+    fetchResults(false);
   }
 }
 
@@ -128,33 +131,41 @@ async function fetchResults(reset = false) {
 
   if (reset) {
     allResults = [];
-    currentPage = 1;
+    filteredResults = [];
+    hasMore = true;
   }
 
   const offset = allResults.length;
   const exact = exactCheckbox && exactCheckbox.checked;
   const syn = synonymsCheckbox && synonymsCheckbox.checked;
-  const resp = await fetch(
-    `/search?query=${encodeURIComponent(query)}` +
-      `&mode=${encodeURIComponent(mode)}` +
-      `&offset=${offset}&limit=${LIMIT}` +
-      `&exact=${exact}&synonyms=${syn}`
-  );
-  const data = await resp.json();
+  try {
+    const resp = await fetch(
+      `/search?query=${encodeURIComponent(query)}` +
+        `&mode=${encodeURIComponent(mode)}` +
+        `&offset=${offset}&limit=${LIMIT}` +
+        `&exact=${exact}&synonyms=${syn}`
+    );
+    const data = await resp.json();
 
-  if (data.results && data.results.length > 0) {
-    allResults = allResults.concat(data.results);
+    if (data.results && data.results.length > 0) {
+      allResults = allResults.concat(data.results);
+    }
+
+    // Use backend pagination truth directly.
+    if (typeof data.has_more === 'boolean') {
+      hasMore = data.has_more;
+    } else {
+      hasMore = !!(data.results && data.results.length === LIMIT);
+    }
+  } catch (err) {
+    console.error('Search request failed:', err);
+    hasMore = false;
+  } finally {
+    loading = false;
+    showLoading(false);
   }
 
-  loading = false;
-  
-  if (reset) {
-    applyLocalFilters();
-  } else {
-    displayResults();
-  }
-  
-  showLoading(false);
+  applyLocalFilters();
 }
 
 function setMode(m) {
@@ -208,7 +219,7 @@ if (synonymsCheckbox) synonymsCheckbox.addEventListener('change', () => {
   fetchResults(true);
 });
 if (loadMoreBtn) loadMoreBtn.addEventListener('click', () => {
-  // load more results from server (not just paginate local slice)
+  // fallback manual pagination in addition to infinite scroll
   fetchResults(false);
 });
 window.addEventListener('scroll', () => {
