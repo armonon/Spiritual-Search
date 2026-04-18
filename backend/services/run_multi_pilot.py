@@ -88,7 +88,17 @@ def run(
     include_synonyms: bool = True,
 ):
     # expand topic based on flag
-    keywords = expand_topic(topic, include_synonyms=include_synonyms)
+    keywords = [k.strip() for k in expand_topic(topic, include_synonyms=include_synonyms) if isinstance(k, str) and k.strip()]
+    if not keywords:
+        out = {
+            "topic": topic,
+            "expandedQueries": [],
+            "subjects": {},
+            "totalBooksFound": 0,
+            "results": [],
+        }
+        print(json.dumps(out, indent=2, ensure_ascii=False))
+        return out
     if use_local and os.path.exists(INDEX_FILE):
         with open(INDEX_FILE, 'r', encoding='utf-8') as f:
             all_books = json.load(f)

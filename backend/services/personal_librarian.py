@@ -23,6 +23,9 @@ def expand_topic(topic: str, max_keywords: int = 6, include_synonyms: bool = Tru
     ``max_keywords`` related words.
     """
     topic = topic.strip()
+    if not topic:
+        return []
+
     keywords = [topic]
     # if we don't want synonyms bail out early with minimal variants
     if not include_synonyms:

@@ -44,12 +44,25 @@ def _word_tokens(value: str):
 def _description_text(record: dict) -> str:
     raw = record.get("raw") if isinstance(record.get("raw"), dict) else {}
     volume_info = raw.get("volumeInfo") if isinstance(raw.get("volumeInfo"), dict) else {}
+    subjects = record.get("subjects") if isinstance(record.get("subjects"), list) else []
+    authors = record.get("authors") if isinstance(record.get("authors"), list) else []
+    summaries = raw.get("summaries") if isinstance(raw.get("summaries"), list) else []
+    first_sentence = raw.get("first_sentence")
+    if isinstance(first_sentence, dict):
+        first_sentence = first_sentence.get("value")
+    elif isinstance(first_sentence, list):
+        first_sentence = " ".join([str(x) for x in first_sentence if x])
+
     candidates = [
         record.get("description"),
         record.get("summary"),
         record.get("excerpt"),
         volume_info.get("description"),
         volume_info.get("subtitle"),
+        " ".join([str(a) for a in authors if a]),
+        " ".join([str(s) for s in subjects if s]),
+        " ".join([str(s) for s in summaries if s]),
+        first_sentence,
     ]
     return " ".join([c for c in candidates if isinstance(c, str) and c.strip()])
 
@@ -86,11 +99,16 @@ def _query_matches_text(query: str, text: str) -> bool:
 def _record_matches_query(record: dict, query: str, exact: bool = False) -> bool:
     title = record.get("title") or ""
     description = _description_text(record)
+    subjects = " ".join([str(s) for s in (record.get("subjects") or []) if s])
+    authors = " ".join([str(a) for a in (record.get("authors") or []) if a])
     q = _clean_text(query)
 
     if exact:
-        # strict containment in title or description
-        return bool(q) and (q in _clean_text(title) or q in _clean_text(description))
+        # strict containment in title/description/authors/subjects
+        return bool(q) and any(
+            q in _clean_text(field)
+            for field in (title, description, authors, subjects)
+        )
 
     # normal mode: fuzzy/typo-tolerant over title or description text
     return _query_matches_text(query, title) or _query_matches_text(query, description)
@@ -158,6 +176,11 @@ def search(
 
     paged_results = deduped[offset : offset + limit] if deduped is not None else []
     has_more = offset + limit < len(deduped) if deduped is not None else False
+    source_counts = {}
+    if deduped:
+        for row in deduped:
+            src = row.get("source") or row.get("source_type") or "unknown"
+            source_counts[src] = source_counts.get(src, 0) + 1
 
     return {
         "query": query,
@@ -168,4 +191,5 @@ def search(
         "total": len(deduped) if deduped is not None else 0,
         "exact": exact,
         "synonyms": synonyms,
+        "source_counts": source_counts,
     }
