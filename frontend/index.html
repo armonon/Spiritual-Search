@@ -1,46 +1,13 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-    <meta charset="UTF-8">
-    <title>Spiritual Search</title>
-    <link rel="stylesheet" href="/static/styles.css">
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Spiritual Search</title>
+  <link rel="stylesheet" href="/static/styles.css" />
 </head>
 <body>
-    <div class="container">
-        <h1>Spiritual Search</h1>
-
-        <div class="tabs">
-            <button id="tab-library" class="tab active">Library</button>
-            <button id="tab-openweb" class="tab">Open Web</button>
-        </div>
-
-        <p id="mode-explain" class="explain">Library: search curated institutional and archival sources.</p>
-
-        <div class="search-box">
-            <input type="text" id="searchInput" placeholder="Search...">
-            <button id="search-btn">Search</button>
-        </div>
-
-        <div class="filters" id="filters">
-            <label>Sort by:</label>
-            <select id="sort-select">
-                <option value="relevance">Relevance</option>
-                <option value="newest">Newest First</option>
-                <option value="oldest">Oldest First</option>
-                <option value="popularity">Most Popular</option>
-            </select>
-            <label>Year Range:</label>
-            <input type="number" id="year-from" placeholder="From" min="1000" max="2026">
-            <input type="number" id="year-to" placeholder="To" min="1000" max="2026">
-            <label><input type="checkbox" id="exact-match"> Exact match only</label>
-            <label><input type="checkbox" id="include-synonyms" checked> Include synonyms</label>
-            <button id="apply-filters">Apply Filters</button>
-        </div>
-
-        <div id="results"></div>
-        <div id="loading">Loading...</div>
-        <button id="load-more" style="display:none; width: 100%; padding: 1rem; margin-top: 2rem; cursor: pointer;">Load More</button>
-    </div>
-    <script src="/static/script.js"></script>
+  <div id="app"></div>
+  <script src="/static/script.js"></script>
 </body>
 </html>
