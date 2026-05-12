@@ -164,6 +164,87 @@ function mergeBooks(items) {
   });
   return [...map.values()];
 }
+async function fetchJson(url) {
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), 9000);
+  try {
+    const resp = await fetch(url, { signal: controller.signal });
+    if (!resp.ok) throw new Error(`${resp.status} ${resp.statusText}`);
+    return await resp.json();
+  } finally {
+    clearTimeout(timeout);
+  }
+}
+async function directOpenLibrary(q) {
+  const data = await fetchJson(`https://openlibrary.org/search.json?q=${encodeURIComponent(q)}&limit=24&fields=key,title,author_name,first_publish_year,isbn,language,subject,cover_i,ia,ebook_access,ratings_average,edition_count`);
+  return (data.docs || []).map(d => ({
+    id: d.key,
+    title: d.title,
+    authors: d.author_name || [],
+    year: d.first_publish_year,
+    subjects: d.subject || [],
+    isbn: d.isbn || [],
+    source: 'Open Library',
+    thumbnail: d.cover_i ? `https://covers.openlibrary.org/b/id/${d.cover_i}-L.jpg` : '',
+    description: `${d.edition_count || 1} edition${d.edition_count === 1 ? '' : 's'} indexed by Open Library${d.ebook_access ? ` • ${d.ebook_access}` : ''}${d.ratings_average ? ` • rating ${Number(d.ratings_average).toFixed(1)}` : ''}`,
+    raw: d,
+  }));
+}
+async function directGoogleBooks(q) {
+  const data = await fetchJson(`https://www.googleapis.com/books/v1/volumes?q=${encodeURIComponent(q)}&maxResults=24&printType=books&projection=lite`);
+  return (data.items || []).map(item => {
+    const v = item.volumeInfo || {};
+    return {
+      id: item.id,
+      title: v.title,
+      authors: v.authors || [],
+      year: extractYear({ publishedDate: v.publishedDate }),
+      subjects: v.categories || [],
+      isbn: (v.industryIdentifiers || []).map(x => x.identifier),
+      source: 'Google Books',
+      thumbnail: cleanUrl(v.imageLinks?.thumbnail || v.imageLinks?.smallThumbnail || ''),
+      description: v.description || `${v.publisher || 'Publisher metadata'}${v.pageCount ? ` • ${v.pageCount} pages` : ''}`,
+      raw: item,
+    };
+  });
+}
+async function directGutendex(q) {
+  const data = await fetchJson(`https://gutendex.com/books?search=${encodeURIComponent(q.replace(/^isbn:/i, '').trim())}`);
+  return (data.results || []).slice(0, 24).map(b => ({
+    id: `gutenberg-${b.id}`,
+    title: b.title,
+    authors: (b.authors || []).map(a => a.name),
+    year: b.authors?.[0]?.birth_year || '',
+    subjects: uniq([b.subjects || [], b.bookshelves || []]),
+    source: 'Project Gutenberg',
+    thumbnail: b.formats?.['image/jpeg'] || '',
+    description: `Public-domain ebook from Project Gutenberg • ${(b.download_count || 0).toLocaleString()} downloads.`,
+    raw: { ...b, identifier: b.id },
+  }));
+}
+async function directInternetArchive(q) {
+  const fields = 'identifier,title,creator,year,subject,description';
+  const url = `https://archive.org/advancedsearch.php?q=${encodeURIComponent(`title:(${q}) OR subject:(${q})`)}&fl[]=${fields.split(',').join('&fl[]=')}&rows=16&page=1&output=json`;
+  const data = await fetchJson(url);
+  return (data.response?.docs || []).map(d => ({
+    id: d.identifier,
+    title: d.title,
+    authors: Array.isArray(d.creator) ? d.creator : (d.creator ? [d.creator] : []),
+    year: d.year,
+    subjects: Array.isArray(d.subject) ? d.subject : (d.subject ? [d.subject] : []),
+    source: 'Internet Archive',
+    thumbnail: `https://archive.org/services/img/${encodeURIComponent(d.identifier)}`,
+    description: Array.isArray(d.description) ? d.description[0] : d.description,
+    raw: d,
+  }));
+}
+async function directStaticSearch(q) {
+  const searches = state.mode === 'open_web'
+    ? [directOpenLibrary(q), directInternetArchive(q), directGutendex(q)]
+    : [directOpenLibrary(q), directGoogleBooks(q), directGutendex(q), directInternetArchive(q)];
+  const settled = await Promise.allSettled(searches);
+  return settled.flatMap(r => r.status === 'fulfilled' ? r.value : []);
+}
 async function fetchPage(reset = false) {
   if (state.loading || (!reset && !state.hasMore)) return;
   if (reset) Object.assign(state, { offset: 0, allResults: [], hasMore: true, error: '', searched: true });
@@ -186,8 +267,13 @@ async function fetchPage(reset = false) {
     state.hasMore = Boolean(data.has_more);
     state.error = state.allResults.length ? '' : 'No useful records came back. Try a broader phrase, title, author, or adjacent topic.';
   } catch (err) {
-    state.error = `Search failed: ${err.message || err}`;
+    const direct = await directStaticSearch(state.query);
+    state.allResults = reset ? direct : state.allResults.concat(direct);
+    state.offset = state.allResults.length;
     state.hasMore = false;
+    state.error = state.allResults.length
+      ? 'Using Netlify static search fallback while the Python backend is unavailable.'
+      : `Search failed: ${err.message || err}`;
   } finally {
     state.loading = false;
     render();
