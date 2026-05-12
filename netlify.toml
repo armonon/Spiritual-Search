@@ -1,0 +1,3 @@
+[build]
+  command = "rm -rf netlify-deploy && mkdir -p netlify-deploy && cp frontend/index.html netlify-deploy/index.html && cp -R static netlify-deploy/static && printf '/*    /index.html   200\n' > netlify-deploy/_redirects"
+  publish = "netlify-deploy"
